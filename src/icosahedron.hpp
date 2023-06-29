@@ -2,6 +2,8 @@
 
 namespace icosahedron {
 
+const int NUM_LEDS_PER_EDGE = 42;
+  
 struct Vertex {
   float px, py, pz;
   float nx, ny, nz;  
@@ -40,14 +42,18 @@ void MakeIcosahedronPipesMesh(std::vector<Vertex>& verts);
 void MakeIcosahedronLightPoints(std::vector<LightPoint>& lightPos, std::vector<LightPoint>& lightCol);
 void MakeFloorPlane(std::vector<Vertex>& verts, float height, int res, float scale);
 
+  typedef std::function<int(int)> WhichSideCallback;
+  //typedef int (*WhichSideCallback)(int srcIdx);
+  
 void AnimateLightColours(int pattern,
-												 const std::vector<LightPoint>& positions,
-												 std::vector<LightPoint>& colours,
-												 float time,
-												 int opt,
-												 float *params,
-												 int nParams,
-												 float insideOutsideMix);
+			 const std::vector<LightPoint>& positions,
+			 std::vector<LightPoint>& colours,
+			 float time,
+			 int opt,
+			 float *params,
+			 int nParams,
+			 float insideOutsideMix,
+			 WhichSideCallback whichSideCallback);
 
 int GetNumAnimationPatterns();
 

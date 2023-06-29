@@ -18,8 +18,6 @@
 namespace icosahedron
 {
 
-const int NUM_LEDS_PER_EDGE = 42;
-
 glm::vec3 HSVtoRGB(float H, float s, float v)
 {
   float C = s*v;
@@ -619,7 +617,7 @@ static void SweepPattern(const std::vector<LightPoint>& positions, std::vector<L
 	}
 }
 
-static void InsideOutPattern(const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float time, float *params, int nParams)
+static void InsideOutPattern(const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float time, float *params, int nParams, WhichSideCallback whichSide)
 {
 	float mix = fabs(fmod(time * 3.0f * params[0], 2.0f) - 1.0f);
 	float sideMix[2] = {(mix * 2.0f), (1.0f - mix) * 2.0f};	
@@ -629,7 +627,7 @@ static void InsideOutPattern(const std::vector<LightPoint>& positions, std::vect
 		auto& col = colours[n];			
 		float v = 1.0;
 		col.setPos(HSVtoRGB(h, v, v));		
-		int side = (n / NUM_LEDS_PER_EDGE) & 1;
+		int side = whichSide(n);//(n / NUM_LEDS_PER_EDGE) & 1;
 		const float sm = sideMix[side];
 		col.px *= sm;
 		col.py *= sm;
@@ -660,11 +658,11 @@ static void SpecklyPlasmaPattern(const std::vector<LightPoint>& positions, std::
 	}
 }
 
-static void MixInsideOutside(const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float mix)
+static void MixInsideOutside(const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float mix, WhichSideCallback whichSide)
 {
 	float sideMix[2] = {(mix * 2.0f), (1.0f - mix) * 2.0f};
 	for(int n = 0; n<positions.size(); n++) {
-		int side = (n / NUM_LEDS_PER_EDGE) & 1;
+	  int side = whichSide(n);//(n / NUM_LEDS_PER_EDGE) & 1;
 		auto& col = colours[n];
 		const float sm = sideMix[side];
 		col.px *= sm;
@@ -692,7 +690,7 @@ int GetNumAnimationPatterns()
 	return 11;
 }
 
-void AnimateLightColours(int pattern, const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float time, int arg, float *params, int nParams, float insideOutsideMix)
+void AnimateLightColours(int pattern, const std::vector<LightPoint>& positions, std::vector<LightPoint>& colours, float time, int arg, float *params, int nParams, float insideOutsideMix, WhichSideCallback whichSide)
 {
 	ClearColours(colours);
 	switch(pattern) {
@@ -721,7 +719,7 @@ void AnimateLightColours(int pattern, const std::vector<LightPoint>& positions, 
 		MultiRingPattern(positions, colours, time);
 		break;
 	case 8:
-		InsideOutPattern(positions, colours, time, params, nParams);
+	  InsideOutPattern(positions, colours, time, params, nParams, whichSide);
 		break;
 	case 9:
 		PlasmaPattern(positions, colours, time, params, nParams);
@@ -731,7 +729,7 @@ void AnimateLightColours(int pattern, const std::vector<LightPoint>& positions, 
 		break;		
 	}
 
-	MixInsideOutside(positions, colours, insideOutsideMix);
+	MixInsideOutside(positions, colours, insideOutsideMix, whichSide);
 	
 }
 

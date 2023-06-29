@@ -60,6 +60,8 @@ public:
 	bool m_enabled = false;
 	int m_frameDivisor = 2;	
 	int m_packetStartOffset = 1;
+
+  int whichSide(int n);
 	
 protected:
 	struct DeviceLEDRange {

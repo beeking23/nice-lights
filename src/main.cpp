@@ -258,7 +258,7 @@ void main(void)
 // ------------------------------
 
 const char *g_fragShaderLightPoints = R"_X_(
-#version 450 core
+#version 420
 in vec4 vs_col;
 in vec4 vs_centre;
 in vec4 vs_v;
@@ -273,7 +273,7 @@ void main(void)
 )_X_";
 
 const char *g_vertShaderLightPoints = R"_X_(
-#version 450 core
+#version 420
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 col;
 
@@ -381,7 +381,24 @@ void NiceLightsApp::animateLights()
 			if(insideMix < 0.0f)
 				insideMix = 0.0f;
 		}
-		icosahedron::AnimateLightColours(m_animation, m_lightPos, m_lightCol, t, m_edge, m_animParams, sizeof(m_animParams)/sizeof(m_animParams[0]), insideMix);
+		
+		icosahedron::WhichSideCallback whichSide = [this](int n) -> int {
+		  if(m_netMultiSender.m_enabled)
+		    return m_netMultiSender.whichSide(n);
+		  else
+		    return (n / icosahedron::NUM_LEDS_PER_EDGE) & 1;
+		};
+		
+		icosahedron::AnimateLightColours(m_animation,
+						 m_lightPos,
+						 m_lightCol,
+						 t,
+						 m_edge,
+						 m_animParams,
+						 sizeof(m_animParams)/sizeof(m_animParams[0]),
+						 insideMix,
+						 whichSide);
+						 
 	}
 	
   glNamedBufferSubData(m_lightColBuffer, 0, sizeof(icosahedron::LightPoint) * m_lightCol.size(), &m_lightCol[0].px);

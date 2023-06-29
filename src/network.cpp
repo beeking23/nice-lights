@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cstdio>
 #include <list>
+#include <functional>
 
 #include <e131.h>
 #include <unistd.h>
@@ -241,6 +242,36 @@ bool NetworkMultiSender::readRangesFile(const std::string& filename)
 	}
 
 	return initHosts();
+}
+
+int NetworkMultiSender::whichSide(int idx)
+{
+  static auto InRange = [](const DeviceLEDRange& range, int n) -> bool {
+    return (n >= range.m_srcStart && n < range.m_srcEnd);
+  };
+  
+  auto FindRangeForIdx = [this](int n) -> const DeviceLEDRange*{
+    for(auto& host : m_hosts) {
+      for(auto& range : host.m_ranges) {
+	if(InRange(range, n)) {
+	  return &range;
+	}
+      }
+    }
+    return nullptr;
+  };
+
+  // reduce the number of searches by caching the last search result
+  static const DeviceLEDRange *lastRange = nullptr;
+  if(lastRange == NULL || !InRange(*lastRange, idx)) {
+    lastRange = FindRangeForIdx(idx);
+  }
+  
+  int side = (idx / icosahedron::NUM_LEDS_PER_EDGE) & 1;  
+  if(lastRange && lastRange->m_reversed) {
+    return !side;
+  } else
+    return side;
 }
 
 // -----------------------------------------
