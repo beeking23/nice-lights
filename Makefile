@@ -1,4 +1,5 @@
 IMGUI_DIR = ../imgui
+GLM_DIR = ../3rdparty/glm_0.9.9.8/glm
 
 # SRCS = src/main.cpp \
 # src/icosahedron.cpp \
@@ -15,7 +16,7 @@ IMGUI_DIR = ../imgui
 OBJS = main.o icosahedron.o vertexdesc.o glhelpers.o network.o serial.o e131.o
 CC = g++
 SDL_C_FLAGS = $(shell sdl2-config --cflags)
-CXXFLAGS = -std=c++20 -I/home/bunny/gl-libs/glm $(SDL_C_FLAGS) -Wshadow -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I./e131
+CXXFLAGS = -std=c++20 -I$(GLM_DIR)  $(SDL_C_FLAGS) -Wshadow -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I./e131
 
 SRC_IMGUI += $(IMGUI_DIR)/imgui.cpp \
 $(IMGUI_DIR)/imgui_demo.cpp \
