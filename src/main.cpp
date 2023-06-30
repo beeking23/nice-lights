@@ -216,7 +216,7 @@ bool NiceLightsApp::createWindow()
 // ------------------------------
 
 const char *g_fragShaderMesh = R"_X_(
-#version 450 core
+#version 420
 in vec4 vs_col;
 in vec4 vs_nrm;
 out vec4 fs_col;
@@ -230,7 +230,7 @@ void main(void)
 )_X_";
 
 const char *g_vertShaderMesh = R"_X_(
-#version 450 core
+#version 420
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 nrm;
 layout (location = 2) in vec3 col;
@@ -467,6 +467,9 @@ void NiceLightsApp::drawGUI()
 
 	ImGui::Begin("Icosahedron");
 
+	// Scale UI for High DIP displays
+	ImGui::SetWindowFontScale(WIN_HEIGHT / 1080.0);
+
 	ImGui::SeparatorText("Rendering");
 	auto& io = ImGui::GetIO();
 	ImGui::Text("%.1f FPS", io.Framerate);		
@@ -520,6 +523,9 @@ void NiceLightsApp::drawGUI()
 
 	ImGui::Begin("Peripheral");
 
+	// Scale UI for High DIP displays
+	ImGui::SetWindowFontScale(WIN_HEIGHT / 1080.0);
+	
 	ImGui::SeparatorText("Serial");
 	ImGui::InputText("Dev file", m_serialDev, sizeof(m_serialDev)-1);
 	if(ImGui::Button("Open device")) {
