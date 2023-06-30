@@ -465,10 +465,11 @@ void NiceLightsApp::drawGUI()
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 
+	const auto windowFontScale = std::max(1.0f, WIN_HEIGHT / 1080.0f);
 	ImGui::Begin("Icosahedron");
 
 	// Scale UI for High DIP displays
-	ImGui::SetWindowFontScale(WIN_HEIGHT / 1080.0);
+	ImGui::SetWindowFontScale(windowFontScale);
 
 	ImGui::SeparatorText("Rendering");
 	auto& io = ImGui::GetIO();
@@ -524,7 +525,7 @@ void NiceLightsApp::drawGUI()
 	ImGui::Begin("Peripheral");
 
 	// Scale UI for High DIP displays
-	ImGui::SetWindowFontScale(WIN_HEIGHT / 1080.0);
+	ImGui::SetWindowFontScale(windowFontScale);
 	
 	ImGui::SeparatorText("Serial");
 	ImGui::InputText("Dev file", m_serialDev, sizeof(m_serialDev)-1);
