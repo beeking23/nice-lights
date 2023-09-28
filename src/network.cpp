@@ -10,7 +10,9 @@
 
 #include <e131.h>
 #include <unistd.h>
+#ifndef _WIN32
 #include <sys/select.h>
+#endif
 
 #include <glm/glm.hpp>
 #include <glm/vec3.hpp>

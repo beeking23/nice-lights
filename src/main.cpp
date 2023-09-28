@@ -169,7 +169,11 @@ private:
 	float m_joyAxisY = 0.0f;
 	int m_serialSeqNum = 0;
 
-	char m_serialDev[128] = "/dev/ttyACM0";
+#ifdef _WIN32
+  char m_serialDev[128] = "COM1";
+#else
+  char m_serialDev[128] = "/dev/ttyACM0";
+#endif
 };
 
 NiceLightsApp& NiceLightsApp::Instance()
@@ -677,27 +681,27 @@ void NiceLightsApp::onKeyboardEvent(auto sym)
 
 void NiceLightsApp::mainLoop()
 {
-	ImGuiIO& io = ImGui::GetIO();	
+  ImGuiIO& io = ImGui::GetIO();	
   SDL_Event event;  
   while(!m_quit) {
-		handleSerial();			
+    handleSerial();			
     while(SDL_PollEvent(&event)) {
-			ImGui_ImplSDL2_ProcessEvent(&event);
-			if(event.type == SDL_MOUSEWHEEL) {
-				if(!io.WantCaptureMouse)
-					onMouseWheelEvent(event.wheel.y); 
-			} else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-				if(!io.WantCaptureMouse)
-					 onMouseButtonEvent(event.button.x, event.button.y, event.button.button, event.button.state);
-			} else if(event.type == SDL_MOUSEMOTION) {
-				if(!io.WantCaptureMouse)
-					 onMouseMotionEvent(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel, event.motion.state);
+      ImGui_ImplSDL2_ProcessEvent(&event);
+      if(event.type == SDL_MOUSEWHEEL) {
+	if(!io.WantCaptureMouse)
+	  onMouseWheelEvent(event.wheel.y); 
+      } else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+	if(!io.WantCaptureMouse)
+	  onMouseButtonEvent(event.button.x, event.button.y, event.button.button, event.button.state);
+      } else if(event.type == SDL_MOUSEMOTION) {
+	if(!io.WantCaptureMouse)
+	  onMouseMotionEvent(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel, event.motion.state);
       } else if(event.type == SDL_KEYDOWN)
-				 if(!io.WantCaptureKeyboard)
-						onKeyboardEvent(event.key.keysym.sym);
-      else if(event.type == SDL_QUIT) {
-        m_quit = true;
-      }
+	if(!io.WantCaptureKeyboard)
+	  onKeyboardEvent(event.key.keysym.sym);
+	else if(event.type == SDL_QUIT) {
+	  m_quit = true;
+	}
     }
 
     drawGL();

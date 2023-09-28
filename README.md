@@ -2,16 +2,35 @@
 
 Visualiser and controller for the Quantum Tech Club Icosahedron LED light rig.
 
-# Compiling
+# Build
 
-- Install the SDL2 development package (sudo apt install libsdl2-dev)
+## Requirements for all targets
 - Check out from github the nice-lights repo
 - Check out dear imgui repo next to nice-lights (git clone https://github.com/ocornut/imgui.git)
-- install build-essentials for g++ and make
-- Cd to nice-lights
-- Run 'make'
+- CHeck out glm next to nice-lights (git clone https://github.com/g-truc/glm.git)
 
-If you use a different location for IMGUI then change the Makefile as needed.
+## Requirements for Linux
+- Install the SDL2 development package (sudo apt install libsdl2-dev)
+- Install the glew development package (sudo apt install libglew-dev)
+- Install the cmake package (sudo apt install cmake)
+- install build-essentials for g++ and make
+
+## Requirements for Win32 using MXE cross compilation
+- Install MXE from https://mxe.cc/
+- build the sdl2 package "make sdl2"
+- build the cmake package "make cmake"
+- build the glew package "make glew"
+- You may need more MXE packages to get those to build
+
+## Requirements for native Win32 build
+- Untested but expected to work, let CMake do its thing...
+
+## Compile
+- Make a directory to build in (i.e. mkdir ~/nice-lights/build)
+- Cd to that dir
+- Run cmake <path to CMakeLists.txt>
+- (or i686-w64-mingw32.static-cmake on MXE)
+- run make
 
 # Using
 - Run nice-lights
@@ -74,4 +93,4 @@ This provides E131 support with mapping support for the icosahedron rig.
 # TODO
 - Source has mixed spaces and tabs :-( should be 2 spaces throughout
 - Commenting is missing - this was a spare time personal project!
-- Makefile is rubbish, should be replaced with CMake
+- ~~Makefile is rubbish, should be replaced with CMake~~ 

@@ -36,7 +36,7 @@ extern "C" {
 #ifndef _WIN32
 #include <netinet/in.h>
 #else
-#include <WinSock2.h>
+#include <winsock2.h>
 #endif
 
 #ifdef __GNUC__

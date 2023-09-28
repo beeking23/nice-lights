@@ -1,5 +1,8 @@
 #include <iostream>
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <termios.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -7,34 +10,92 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/select.h>
+#endif
 
 #include "serial.hpp"
 
 bool SerialIO::open(const std::string& devname)
 {
-	m_bytesRead = 0;
+#ifdef _WIN32
+  
+  if(m_file != INVALID_HANDLE_VALUE) {
+    CloseHandle(m_file);
+    m_file = INVALID_HANDLE_VALUE;
+  }
+  
+  std::string filename = "\\\\.\\" + devname;
+  m_file = CreateFile(filename.c_str(),
+		      GENERIC_READ|GENERIC_WRITE,
+		      0,
+		      NULL,
+		      OPEN_EXISTING,
+		      FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OVERLAPPED,
+		      NULL);
+
+  
+  if(m_file == INVALID_HANDLE_VALUE) {
+    std::cout << "Unable to open: " << filename << std::endl;
+    return false;
+  }
+
+  std::cout << "Open ok : " << filename << std::endl;
+
+  // ensure we have the right baudrate. Don't change anything else
+  // almost certainly this is connected to a USB to serial device
+  // so the rest of the comm stuff is pretty meaningless anyways.
+  DCB dcb = {0};
+  if(!GetCommState(m_file, &dcb)) {
+    std::cout << "Failed GetCommState" << std::endl;
+    return false;
+  }
+  dcb.BaudRate = CBR_115200;
+
+  if(!SetCommState(m_file, &dcb)) {
+    std::cout << "Failed GetCommState" << std::endl;
+    return false;
+  }
+
+  if(!m_ovl.hEvent)
+    m_ovl.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+  SetCommMask(m_file, EV_RXCHAR);
+
+  // start a background wait for a comm event - we will check this when the app calls read()
+  if(!WaitCommEvent(m_file, &m_commEvent, &m_ovl)) {
+    if(GetLastError() != ERROR_IO_PENDING) {
+      std::cout << "Failed WaitCommEvent " << GetLastError() << std::endl;
+      return false;
+    }
+  }
+
+  std::cout << "Serial open success" << std::endl;  
+  return true;
+  
+#else
+  
+  m_bytesRead = 0;
 	
-	if(m_fd != -1) {
-		::close(m_fd);
-		m_fd = -1;
-	}
+  if(m_fd != -1) {
+    ::close(m_fd);
+    m_fd = -1;
+  }
 	
 
-	if((m_fd = ::open(devname.c_str(), O_RDWR/* | O_EXCL | O_NDELAY*/)) == -1) {
+  if((m_fd = ::open(devname.c_str(), O_RDWR/* | O_EXCL | O_NDELAY*/)) == -1) {
     std::cout << "unable to open" << std::endl;
     return false;
-	}
+  }
 
-	// Create new termios struct, we call it 'tty' for convention
+  // Create new termios struct, we call it 'tty' for convention
   struct termios tty;
 
   // Read in existing settings, and handle any error
   if(tcgetattr(m_fd, &tty) != 0) {
-		printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
-		return false;
+    printf("Error %i from tcgetattr: %s\n", errno, strerror(errno));
+    return false;
   }
 
-	auto speed = B115200;
+  auto speed = B115200;
 	
   tty.c_cflag &= ~PARENB; // Clear parity bit, disabling parity (most common)
   tty.c_cflag &= ~CSTOPB; // Clear stop field, only one stop bit used in communication (most common)
@@ -65,57 +126,110 @@ bool SerialIO::open(const std::string& devname)
 
   // Save tty settings, also checking for error
   if (tcsetattr(m_fd, TCSANOW, &tty) != 0) {
-      printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
-      return 1;
+    printf("Error %i from tcsetattr: %s\n", errno, strerror(errno));
+    return 1;
   }
 	
-	tcflush(m_fd, TCIOFLUSH);
-	std::cout << "Opened device" << std::endl;
-	return true;
+  tcflush(m_fd, TCIOFLUSH);
+  std::cout << "Opened device" << std::endl;
+  return true;
+#endif
 }
 
 int SerialIO::read(int readLen)
 {
-	int dataRead = 0;
+#ifdef _WIN32
+  // check for the previous comm event wait to complete.
+  DWORD nBytes = 0;
+  if(!GetOverlappedResult(m_file, &m_ovl, &nBytes, FALSE)) {
+    if(GetLastError() != ERROR_IO_INCOMPLETE)
+      std::cout << "Error waiting for comm event" << std::endl;
+    return 0;
+  }
 
-	while(dataRead < readLen) {
-		fd_set readfs;
-		timeval tv;
-		tv.tv_sec = 0;
-		tv.tv_usec = 0;
-	
-		FD_ZERO(&readfs);
-		FD_SET(m_fd, &readfs);
+  bool byteWasRead = false;
+  uint8_t commData = 0;
 
-		int s = 0;
-		if((s = select(m_fd+1, &readfs, NULL, NULL, &tv)) < 0) {
-			std::cout << "Failed select() on serial port" << std::endl;
-			break;
-		}
-	
-		if(FD_ISSET(m_fd, &readfs)) {
-			uint8_t tmp = 0;
-			int len = ::read(m_fd, &tmp, 1);
-			if(len != 1) {
-				std::cout << "Error reading serial port" << std::endl;
-				break;
-			}
-
-			m_dataBuf[m_dataBufLen] = tmp;			
-			m_bytesRead += len;
-			m_dataBufLen += len;
-
-			if(m_dataBufLen == sizeof(m_dataBuf)) {
-				printf("Overflow\n");
-				m_dataBuf[0] = tmp;
-				m_dataBufLen = 1;
-			}
-			dataRead += len;
-			break;
-		} else
-			break;
+  // if this is a rx data data event
+  if(m_commEvent == EV_RXCHAR) {
+    byteWasRead = true;
+    // try and read the comm port
+    if(!ReadFile(m_file, &commData, 1, NULL, &m_ovl)) {
+      // failed because the driver is working.
+      if(GetLastError() == ERROR_IO_PENDING) {
+	// we know there is a byte read so wait for this to complete.
+	if(!GetOverlappedResult(m_file, &m_ovl, &nBytes, TRUE)) {
+	  std::cout << "Failed to wait for ReadFile to complete" << std::endl;
+	  byteWasRead = false;
 	}
+      } else {
+	std::cout << "ReadFile failed: " << GetLastError() << std::endl;
+	byteWasRead = false;
+      }
+    }
+  }
+
+  // start another wait for the next comm event
+  if(!WaitCommEvent(m_file, &m_commEvent, &m_ovl)) {
+    if(GetLastError() != ERROR_IO_PENDING) {
+      std::cout << "Failed WaitCommEvent" << std::endl;
+      return false;
+    }
+  }  
+
+  // if we did read a byte queue it and return how much we read.
+  if(byteWasRead) {
+    pushByte(commData);
+    return 1;
+  } else
+    return 0;
+
+#else
+
+  int dataRead = 0;
+
+  while(dataRead < readLen) {
+    fd_set readfs;
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
 	
-	return dataRead;
+    FD_ZERO(&readfs);
+    FD_SET(m_fd, &readfs);
+
+    int s = 0;
+    if((s = select(m_fd+1, &readfs, NULL, NULL, &tv)) < 0) {
+      std::cout << "Failed select() on serial port" << std::endl;
+      break;
+    }
+	
+    if(FD_ISSET(m_fd, &readfs)) {
+      uint8_t tmp = 0;
+      int len = ::read(m_fd, &tmp, 1);
+      if(len != 1) {
+	std::cout << "Error reading serial port" << std::endl;
+	break;
+      }
+      pushByte(tmp);
+      dataRead += len;
+      break;
+    } else
+      break;
+  }
+	
+  return dataRead;
+#endif
 }
 
+void SerialIO::pushByte(const uint8_t b)
+{
+  m_dataBuf[m_dataBufLen] = b;			
+  m_bytesRead += 1;
+  m_dataBufLen += 1;
+  
+  if(m_dataBufLen == sizeof(m_dataBuf)) {
+    printf("Overflow\n");
+    m_dataBuf[0] = b;
+    m_dataBufLen = 1;
+  }
+}

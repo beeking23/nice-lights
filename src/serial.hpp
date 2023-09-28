@@ -14,8 +14,17 @@ public:
 	int getBytesRead() const { return m_bytesRead; }
 	
 private:
-	int m_fd = -1;
+#ifdef _WIN32
+  HANDLE m_file = INVALID_HANDLE_VALUE;
+  OVERLAPPED m_ovl = {0};
+  DWORD m_commEvent = 0;
+#else
+  int m_fd = -1;
+#endif
+
+  void pushByte(const uint8_t b);
+  
   uint8_t m_dataBuf[256] = {0};
-	int m_dataBufLen = 0;
-	int m_bytesRead = 0;
+  int m_dataBufLen = 0;
+  int m_bytesRead = 0;
 };

@@ -26,7 +26,7 @@
 #include <inttypes.h>
 
 #ifdef _WIN32
-#include <WinSock2.h>
+#include <winsock2.h>
 #include <ws2ipdef.h>
 #else
 #include <netdb.h>
@@ -122,6 +122,7 @@ int e131_dest_str(char *str, const e131_addr_t *dest) {
 
 /* Join a socket file descriptor to an E1.31 multicast group using a universe */
 int e131_multicast_join(int sockfd, const uint16_t universe) {
+  #if 0
   if (universe < 1 || universe > 63999) {
     errno = EINVAL;
     return -1;
@@ -137,6 +138,9 @@ int e131_multicast_join(int sockfd, const uint16_t universe) {
   mreq.imr_ifindex = 0;
 #endif
   return setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof mreq);
+  #endif
+  fprintf(stderr, "Win32 multicast, fixme please\n");
+  return -1;
 }
 
 /* Initialize an E1.31 packet using a universe and a number of slots */
