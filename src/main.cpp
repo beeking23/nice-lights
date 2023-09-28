@@ -43,7 +43,7 @@
 
 int WIN_WIDTH = 1280;
 int WIN_HEIGHT = 1024;
-#define WIN_FLAGS SDL_WINDOW_OPENGL
+#define WIN_FLAGS SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE
 
 #define PACKED __attribute__((__packed__))
 
@@ -86,6 +86,7 @@ public:
   bool createWindow();
   void drawGL();
   void initGL();
+  void updateMatrices();
   void onKeyboardEvent(auto sym);
 	void onMouseMotionEvent(int x, int y, int relx, int rely, int btn);
 	void onMouseButtonEvent(int x, int y, int btn, int state);
@@ -435,6 +436,18 @@ void NiceLightsApp::initMesh()
   m_vaoMesh = VertexDesc::CreateInterleavedVAO(vertexDesc, &mesh[0].px, m_triCountMesh * vSize, vSize, 0);
 }
 
+void NiceLightsApp::updateMatrices()
+{
+  m_projMat = glm::perspective(glm::pi<float>() / 3.0f, (float)WIN_WIDTH / (float)WIN_HEIGHT, 0.1f, 150.0f);
+  m_viewMat = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -2.0));  
+  
+  glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
+  glClearColor(0.f, 0.f, 0.f, 0.f);  
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
+  glBlendFunc(GL_ONE, GL_ONE);  
+}
+
 void NiceLightsApp::initGL()
 {
   auto err = glewInit();
@@ -442,9 +455,6 @@ void NiceLightsApp::initGL()
     printf("glewInit failed: %s\n", glewGetErrorString(err));
     assert(false);
   }
-
-  m_projMat = glm::perspective(glm::pi<float>() / 3.0f, (float)WIN_WIDTH / (float)WIN_HEIGHT, 0.1f, 150.0f);
-  m_viewMat = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -2.0));  
   
   glCreateBuffers(1, &m_ubMatrices);
   GL_CHECK_ERROR();
@@ -455,12 +465,7 @@ void NiceLightsApp::initGL()
   
   initMesh();
   initLightPoints();
-
-  glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
-  glClearColor(0.f, 0.f, 0.f, 0.f);  
-  glEnable(GL_DEPTH_TEST);
-  glEnable(GL_CULL_FACE);
-  glBlendFunc(GL_ONE, GL_ONE);  
+  updateMatrices();
 }
 
 void NiceLightsApp::drawGUI()
@@ -696,12 +701,20 @@ void NiceLightsApp::mainLoop()
       } else if(event.type == SDL_MOUSEMOTION) {
 	if(!io.WantCaptureMouse)
 	  onMouseMotionEvent(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel, event.motion.state);
-      } else if(event.type == SDL_KEYDOWN)
+      } else if(event.type == SDL_KEYDOWN) {
 	if(!io.WantCaptureKeyboard)
 	  onKeyboardEvent(event.key.keysym.sym);
-	else if(event.type == SDL_QUIT) {
+      } else if(event.type == SDL_WINDOWEVENT) {
+	if(event.window.event == SDL_WINDOWEVENT_CLOSE)
 	  m_quit = true;
+	else if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
+	  WIN_WIDTH = event.window.data1;
+	  WIN_HEIGHT = event.window.data2;
+	  updateMatrices();
 	}
+      } else if(event.type == SDL_QUIT) {
+	m_quit = true;
+      }
     }
 
     drawGL();
