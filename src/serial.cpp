@@ -139,32 +139,55 @@ bool SerialIO::open(const std::string& devname)
 int SerialIO::read(int readLen)
 {
 #ifdef _WIN32
-  // check for the previous comm event wait to complete.
+  // if there is already serial data buffered push a single byte and return as if we actually
+  // read it like would have happened with Linux.
+  if(m_readTmpSize > 0) {
+    pushByte(m_readTmp[m_readTmpOffset]);
+    ++m_readTmpOffset;
+    --m_readTmpSize;
+    return 1;
+  }
+
+  // otherwise check for the previous comm event wait to complete.
   DWORD nBytes = 0;
   if(!GetOverlappedResult(m_file, &m_ovl, &nBytes, FALSE)) {
     if(GetLastError() != ERROR_IO_INCOMPLETE)
       std::cout << "Error waiting for comm event" << std::endl;
+    // no data yet
     return 0;
   }
 
   bool byteWasRead = false;
-  uint8_t commData = 0;
 
   // if this is a rx data data event
   if(m_commEvent == EV_RXCHAR) {
-    byteWasRead = true;
-    // try and read the comm port
-    if(!ReadFile(m_file, &commData, 1, NULL, &m_ovl)) {
-      // failed because the driver is working.
-      if(GetLastError() == ERROR_IO_PENDING) {
-	// we know there is a byte read so wait for this to complete.
-	if(!GetOverlappedResult(m_file, &m_ovl, &nBytes, TRUE)) {
-	  std::cout << "Failed to wait for ReadFile to complete" << std::endl;
+    // find out how much data is queued.
+    COMSTAT commStat;
+    if(!ClearCommError(m_file, NULL, &commStat)) {
+      std::cout << "Failed ClearCommError: " << GetLastError() << std::endl;
+      return false;
+    }
+    
+    // work out how much data we can consume.
+    DWORD dataSizeToRead = std::min(commStat.cbInQue, COMMDATA_SIZE);
+
+    if(dataSizeToRead > 0) {    
+      // we did read data unless we discover otherwise...
+      byteWasRead = true;
+    
+      // try and read a decent sized amount of data from the comm port
+      if(!ReadFile(m_file, &m_readTmp, dataSizeToRead, &nBytes, &m_ovl)) {
+	// failed because the driver is working.
+	if(GetLastError() == ERROR_IO_PENDING) {
+	  // we know there is data there to read 
+	  if(!GetOverlappedResult(m_file, &m_ovl, &nBytes, TRUE)) {
+	    std::cout << "Failed to wait for ReadFile to complete" << std::endl;
+	    byteWasRead = false;
+	  }
+	} else {
+	  std::cout << "ReadFile failed: " << GetLastError() << std::endl;
 	  byteWasRead = false;
 	}
-      } else {
-	std::cout << "ReadFile failed: " << GetLastError() << std::endl;
-	byteWasRead = false;
       }
     }
   }
@@ -177,9 +200,12 @@ int SerialIO::read(int readLen)
     }
   }  
 
-  // if we did read a byte queue it and return how much we read.
+  // if we did read data queue the first byte and return that we read just one byte
+  // like the linux version despite having actually read probably a lot more.
   if(byteWasRead) {
-    pushByte(commData);
+    pushByte(m_readTmp[0]);
+    m_readTmpSize = nBytes-1;
+    m_readTmpOffset = 1;
     return 1;
   } else
     return 0;
@@ -232,4 +258,11 @@ void SerialIO::pushByte(const uint8_t b)
     m_dataBuf[0] = b;
     m_dataBufLen = 1;
   }
+}
+
+void SerialIO::clearDataBuf()
+{
+#ifdef _WIN32
+#endif
+  m_dataBufLen = 0;
 }

@@ -59,10 +59,18 @@ struct PACKED SerialControllerPacket {
 	uint8_t m_buttonC : 1;
 	uint8_t m_buttonX : 5;	
 
-	uint8_t m_switchA : 2;
-	uint8_t m_switchB : 2;
-	uint8_t m_switchC : 2;
-	uint8_t m_zero2 : 2;
+	union {
+	  struct {
+	    uint8_t m_switchC_L : 1;
+	    uint8_t m_switchB_L : 1;
+	    uint8_t m_switchA_L : 1;
+	    uint8_t m_switchC_R : 1;
+	    uint8_t m_switchB_R : 1;
+	    uint8_t m_switchA_R : 1;
+	    uint8_t m_zero2 : 2;		    
+	  };
+	  uint8_t m_allSwitches;
+	};
 
 	uint8_t m_faderA;
 	uint8_t m_faderB;
@@ -767,15 +775,15 @@ void NiceLightsApp::handleSerial()
 
 		// ok now do something with it!
 		if(packet.m_buttonA)
-			m_bankSelect = 0;
+			m_bankSelect = 2;
 		else if(packet.m_buttonB)
 			m_bankSelect = 1;
 		else if(packet.m_buttonC)
-			m_bankSelect = 2;
-		
-		m_bankData[0].m_switch = packet.m_switchA;
-		m_bankData[1].m_switch = packet.m_switchB;
-		m_bankData[2].m_switch = packet.m_switchC;
+			m_bankSelect = 0;
+
+		m_bankData[0].m_switch = !packet.m_switchA_L | packet.m_switchA_R<<1;
+		m_bankData[1].m_switch = !packet.m_switchB_L | packet.m_switchB_R<<1;
+		m_bankData[2].m_switch = !packet.m_switchC_L | packet.m_switchC_R<<1;
 		
 		static auto mapFader = [](const uint8_t value) -> float {
 			const uint8_t faderRange = 254;
