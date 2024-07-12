@@ -1,6 +1,7 @@
 # nice-lights
 
 ![First light](built.png)
+![Screenshot](nice-lights.png)
 
 Visualiser and controller for the Quantum Tech Club Icosahedron LED light rig.
 
