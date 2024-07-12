@@ -34,6 +34,7 @@
 #include "glhelpers.hpp"
 #include "network.hpp"
 #include "serial.hpp"
+#include "controlpacket.hpp"
 
 // enable this to periodically track the frames per second
 // #define PROFILE_FPS
@@ -41,51 +42,6 @@
 int WIN_WIDTH = 1280;
 int WIN_HEIGHT = 1024;
 #define WIN_FLAGS SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE
-
-// -------------------------------------
-// Data format the serial data from the light mixer
-// -------------------------------------
-
-#define PACKED __attribute__((__packed__))
-
-struct PACKED SerialControllerPacket {
-  uint8_t m_magicByte;
-        
-  uint8_t m_seqNum : 6;
-  uint8_t m_zero1 : 1;
-  uint8_t m_changed : 1;
-        
-  uint8_t m_buttonA : 1;
-  uint8_t m_buttonB : 1;
-  uint8_t m_buttonC : 1;
-  uint8_t m_buttonX : 5;  
-
-  union {
-    struct {
-      uint8_t m_switchC_L : 1;
-      uint8_t m_switchB_L : 1;
-      uint8_t m_switchA_L : 1;
-      uint8_t m_switchC_R : 1;
-      uint8_t m_switchB_R : 1;
-      uint8_t m_switchA_R : 1;
-      uint8_t m_zero2 : 2;                    
-    };
-    uint8_t m_allSwitches;
-  };
-
-  uint8_t m_faderA;
-  uint8_t m_faderB;
-  uint8_t m_faderC;
-
-  uint8_t m_potA;
-  uint8_t m_potB;
-  uint8_t m_potC;         
-
-  uint8_t m_joyAxisX;
-  uint8_t m_joyAxisY;             
-};
-
-static_assert(sizeof(SerialControllerPacket) == 12);
 
 // -----------------------------------------
 // App container
