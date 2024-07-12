@@ -2,14 +2,14 @@
 
 class SerialIO {
 public:
-	bool open(const std::string& devname);
-	int read(int len);
+  bool open(const std::string& devname);
+  int read(int len);
 	
   void clearDataBuf();
 	
-	const uint8_t *getDataBuf() const { return m_dataBuf; }
-	int getDataBufLen() const { return m_dataBufLen; }
-	int getBytesRead() const { return m_bytesRead; }
+  const uint8_t *getDataBuf() const { return m_dataBuf; }
+  int getDataBufLen() const { return m_dataBufLen; }
+  int getBytesRead() const { return m_bytesRead; }
 	
 private:
 #ifdef _WIN32

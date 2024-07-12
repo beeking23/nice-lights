@@ -35,77 +35,109 @@
 #include "network.hpp"
 #include "serial.hpp"
 
+// enable this to periodically track the frames per second
 // #define PROFILE_FPS
-
-// -----------------------------------------
-// App framework
-// -----------------------------------------
 
 int WIN_WIDTH = 1280;
 int WIN_HEIGHT = 1024;
 #define WIN_FLAGS SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE
 
+// -------------------------------------
+// Data format the serial data from the light mixer
+// -------------------------------------
+
 #define PACKED __attribute__((__packed__))
 
 struct PACKED SerialControllerPacket {
-	uint8_t m_magicByte;
-	
-	uint8_t m_seqNum : 6;
-	uint8_t m_zero1 : 1;
-	uint8_t m_changed : 1;
-	
-	uint8_t m_buttonA : 1;
-	uint8_t m_buttonB : 1;
-	uint8_t m_buttonC : 1;
-	uint8_t m_buttonX : 5;	
+  uint8_t m_magicByte;
+        
+  uint8_t m_seqNum : 6;
+  uint8_t m_zero1 : 1;
+  uint8_t m_changed : 1;
+        
+  uint8_t m_buttonA : 1;
+  uint8_t m_buttonB : 1;
+  uint8_t m_buttonC : 1;
+  uint8_t m_buttonX : 5;  
 
-	union {
-	  struct {
-	    uint8_t m_switchC_L : 1;
-	    uint8_t m_switchB_L : 1;
-	    uint8_t m_switchA_L : 1;
-	    uint8_t m_switchC_R : 1;
-	    uint8_t m_switchB_R : 1;
-	    uint8_t m_switchA_R : 1;
-	    uint8_t m_zero2 : 2;		    
-	  };
-	  uint8_t m_allSwitches;
-	};
+  union {
+    struct {
+      uint8_t m_switchC_L : 1;
+      uint8_t m_switchB_L : 1;
+      uint8_t m_switchA_L : 1;
+      uint8_t m_switchC_R : 1;
+      uint8_t m_switchB_R : 1;
+      uint8_t m_switchA_R : 1;
+      uint8_t m_zero2 : 2;                    
+    };
+    uint8_t m_allSwitches;
+  };
 
-	uint8_t m_faderA;
-	uint8_t m_faderB;
-	uint8_t m_faderC;
+  uint8_t m_faderA;
+  uint8_t m_faderB;
+  uint8_t m_faderC;
 
-	uint8_t m_potA;
-	uint8_t m_potB;
-	uint8_t m_potC;	
+  uint8_t m_potA;
+  uint8_t m_potB;
+  uint8_t m_potC;         
 
-	uint8_t m_joyAxisX;
-	uint8_t m_joyAxisY;		
+  uint8_t m_joyAxisX;
+  uint8_t m_joyAxisY;             
 };
 
 static_assert(sizeof(SerialControllerPacket) == 12);
 
+// -----------------------------------------
+// App container
+// -----------------------------------------
 
 class NiceLightsApp {
 public:
+  /// Fetch the singleton instance of this application.
   static NiceLightsApp& Instance();
-  
+
+  /// Creates and show the GL window. On success the window is visible and GL is initialised.
   bool createWindow();
+
+  /// Draws the GL content using the current camera.
   void drawGL();
+
+  /// Initialises our GL objects.
   void initGL();
+
+  /// Updates the camera matrices and GL state to match the window size.
   void updateMatrices();
+
+  /// Handles a keydown event.
   void onKeyboardEvent(auto sym);
-	void onMouseMotionEvent(int x, int y, int relx, int rely, int btn);
-	void onMouseButtonEvent(int x, int y, int btn, int state);
-	void onMouseWheelEvent(int delta);
+
+  /// Handles the mouse moving when a button is held.
+  void onMouseMotionEvent(int x, int y, int relx, int rely, int btn);
+
+  /// Handles a mouse button press or release.
+  void onMouseButtonEvent(int x, int y, int btn, int state);
+
+  /// Handles the mousewheel to dolly the camera
+  void onMouseWheelEvent(int delta);
+
+  /// The applications main loop, continuously polls for input and then renders the current frame.
   void mainLoop();
+
+  /// Switches the app between fullscreen and windowed mode.
   void toggleFullscreen();
+
+  /// Animates the lights colours and uploads them to the GPU
   void animateLights();
-	void drawGUI();
-	void handleSerial();
+
+  /// Draw the GUI with ImGUI - because ImGUI is an immediate mode GUI then drawing is also where
+  /// input events to the GUI are detected, and in this case, handled.
+  void drawGUI();
+
+  /// Handles the serial connection to the mixer hardware.
+  void handleSerial();
 
 private:
+  /// The app is a singleton, get the only instance using Instance().
   NiceLightsApp() :
     m_ctx(0),
     m_window(nullptr),
@@ -113,70 +145,123 @@ private:
     m_fullscreen(false),
     m_drawFrame(true),
     m_animation(0),
-		m_edge(1),
-		m_camDistance(2.0),
-		m_camAltAz(0.0, 0.0)
+    m_edge(1),
+    m_camDistance(2.0),
+    m_camAltAz(0.0, 0.0)
   {
-		
-	}
+                
+  }
 
+  /// Initialises the GL vertex array objects for the solid meshes and the shader for them.
   void initMesh();
+
+  /// Initialises the GL vertex array objects for the light points and the shader for them.
   void initLightPoints();
     
   SDL_GLContext m_ctx;
   SDL_Window *m_window;
+
+  /// Is true when the user wants the app to quit.
   bool m_quit;
+
+  /// Is true if the app is fullscreen.
   bool m_fullscreen;
+
+  /// Is true if the mesh for the supporting frame is to be drawn, if false only the light points are rendered.
   bool m_drawFrame;
+
+  /// The index number of the animation to use.
   int m_animation;
-	int m_edge;
 
-	float m_camDistance;	
+  /// The index number of an edge to highlight when using the highlight mode to debug the mapping file.
+  int m_edge;
 
-	glm::vec2 m_camAltAz;
-	glm::ivec2 m_mouseMotionStart;
-	glm::vec2 m_mouseMotionStartAltAz;	 
-	
+  /// The distance of the camera from the center of the model.
+  float m_camDistance;    
+
+  /// Polar coordinates of the camera's position.
+  glm::vec2 m_camAltAz;
+
+  /// Screen coordinates of when the user started an orbit action.
+  glm::ivec2 m_mouseMotionStart;
+
+  /// Polar coord of when the user started an orbit action.
+  glm::vec2 m_mouseMotionStartAltAz;       
+
+  /// GL uniform buffer ids for the camera uniform buffers.
   GLuint m_ubMatrices;
-  
+
+  /// Camera projection matrix.
   glm::mat4 m_projMat;
+
+  /// Camera view  matrix.  
   glm::mat4 m_viewMat;
-  
+
+  /// Number of vertices in the mesh for the supporting frame model.
   size_t m_triCountMesh;
+
+  /// GL id of the vertex array object for the mesh
   GLuint m_vaoMesh;
+  /// GL id of the shader program for the mesh
   GLuint m_progMesh;
 
+  /// Number of light points.
   size_t m_countLightsPoints;
+
+  /// GL id of the vertex array of light points.
   GLuint m_vaoLightPoints;
+
+  /// GL id of the shader program for the light points.
   GLuint m_progLightPoints;
 
+  /// Colours of the all lights
   std::vector<icosahedron::LightPoint> m_lightCol;
-  std::vector<icosahedron::LightPoint> m_lightPos;  
+
+  /// Positions of the all lights  
+  std::vector<icosahedron::LightPoint> m_lightPos;
+
+  /// GL buffer if of the light colour buffer array.
   GLuint m_lightColBuffer;
 
-	NetworkMultiSender m_netMultiSender;	
-	NetworkSender m_netSender;
-	NetworkReceiver m_netReceiver;
+  /// E131 transmitter with support for mapping between local lights and the remote edges and microcontrollers.
+  NetworkMultiSender m_netMultiSender;
 
-	float m_animParams[6];
-	float m_insideOutside = 0.5f;
-	float m_insideOutsideAnimateSpeed = 0.0f;
+  /// E131 transmitter without mapping.
+  NetworkSender m_netSender;
 
-	SerialIO m_serial;
+  /// E131 receiver without mapping - can receive from the sender above.
+  NetworkReceiver m_netReceiver;
 
-	bool m_readSerialData = false;
-	bool m_applyPeripheralData = false;
-	
-	struct PeripheralBankData {
-		int m_switch = 0;
-		int m_pot = 0;
-	};
-	int m_bankSelect = 0;
-	PeripheralBankData m_bankData[3];
-	float m_faders[3] = {0.0f, 0.0f, 0.0f};
-	float m_joyAxisX = 0.0f;
-	float m_joyAxisY = 0.0f;
-	int m_serialSeqNum = 0;
+  /// Parameters from the mixers passed to the current light animation
+  float m_animParams[6];
+
+  /// Additionally animation which cycles the light from inside to outside the shape
+  float m_insideOutside = 0.5f;
+
+  /// Speed of the animation between inside and outside the shape.
+  float m_insideOutsideAnimateSpeed = 0.0f;
+
+  /// Low level interface to the serial port.
+  SerialIO m_serial;
+
+  /// If true then serial data will be read from the mixer and stored.
+  bool m_readSerialData = false;
+
+  /// If true then the mixer data will be applied to the light animation controls.
+  bool m_applyPeripheralData = false;
+
+  /// The mizer has 3 sets of switches and potentiometers.
+  struct PeripheralBankData {
+    int m_switch = 0;
+    int m_pot = 0;
+  };
+  int m_bankSelect = 0;
+  PeripheralBankData m_bankData[3];
+  float m_faders[3] = {0.0f, 0.0f, 0.0f};
+  float m_joyAxisX = 0.0f;
+  float m_joyAxisY = 0.0f;
+  /// continually increments in the data from the mixer and is used to track whether frames are being dropped.
+  int m_serialSeqNum = 0;
 
 #ifdef _WIN32
   char m_serialDev[128] = "COM1";
@@ -193,8 +278,8 @@ NiceLightsApp& NiceLightsApp::Instance()
 
 bool NiceLightsApp::createWindow()
 {
-	SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
-		
+  SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
+                
   m_window = SDL_CreateWindow("Nice Lights", 0, 0, WIN_WIDTH, WIN_HEIGHT, WIN_FLAGS);
   if(!m_window)
     return false;
@@ -211,15 +296,15 @@ bool NiceLightsApp::createWindow()
 #ifdef PROFILE_FPS
   SDL_GL_SetSwapInterval(0);
 #endif
-	
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-	ImGui::StyleColorsDark();
-	ImGui_ImplSDL2_InitForOpenGL(m_window, m_ctx);
-	ImGui_ImplOpenGL3_Init("#version 150");	
+        
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+  ImGui::StyleColorsDark();
+  ImGui_ImplSDL2_InitForOpenGL(m_window, m_ctx);
+  ImGui_ImplOpenGL3_Init("#version 150");         
 
   return true;
 }
@@ -362,58 +447,58 @@ void NiceLightsApp::initLightPoints()
   m_lightColBuffer = vertexDescArray[1].m_bufferID;
   assert(m_lightColBuffer >= 0);
 
-	m_netSender.initPackets(m_lightCol.size());
-	m_netReceiver.init(m_lightCol.size());	
+  m_netSender.initPackets(m_lightCol.size());
+  m_netReceiver.init(m_lightCol.size());  
 }
 
 void NiceLightsApp::animateLights()
 {
   float t = SDL_GetTicks() / 1000.0;
 
-	if(m_applyPeripheralData) {
-		m_animation = m_bankData[m_bankSelect].m_pot;		
-		m_animParams[0] = m_joyAxisX;
-		m_animParams[1] = m_joyAxisY;
-		m_animParams[2] = m_faders[0];
-		static const float switchVal[3] = {0.1f, 0.5f, 0.9f};
-		m_animParams[3] = switchVal[m_bankData[m_bankSelect].m_switch];
-		m_insideOutside = m_faders[1];
-		m_insideOutsideAnimateSpeed = m_faders[2];
-	}
-	
-	if(m_netReceiver.m_enabled)
-		 m_netReceiver.update(&m_lightCol[0], m_lightCol.size());
-	else {
-		float insideMix = m_insideOutside;
-		if(m_insideOutsideAnimateSpeed > 0.0) {
-			float mixShift = insideMix - 0.5f;
-			float insideOutMod = fabs(fmod(t * m_insideOutsideAnimateSpeed * 8.0, 2.0f) - 1.0f);
-			insideMix = insideOutMod + mixShift;
-			if(insideMix > 1.0f)
-				insideMix = 1.0;
-			if(insideMix < 0.0f)
-				insideMix = 0.0f;
-		}
-		
-		icosahedron::WhichSideCallback whichSide = [this](int n) -> int {
-		  if(m_netMultiSender.m_enabled)
-		    return m_netMultiSender.whichSide(n);
-		  else
-		    return (n / icosahedron::NUM_LEDS_PER_EDGE) & 1;
-		};
-		
-		icosahedron::AnimateLightColours(m_animation,
-						 m_lightPos,
-						 m_lightCol,
-						 t,
-						 m_edge,
-						 m_animParams,
-						 sizeof(m_animParams)/sizeof(m_animParams[0]),
-						 insideMix,
-						 whichSide);
-						 
-	}
-	
+  if(m_applyPeripheralData) {
+    m_animation = m_bankData[m_bankSelect].m_pot;           
+    m_animParams[0] = m_joyAxisX;
+    m_animParams[1] = m_joyAxisY;
+    m_animParams[2] = m_faders[0];
+    static const float switchVal[3] = {0.1f, 0.5f, 0.9f};
+    m_animParams[3] = switchVal[m_bankData[m_bankSelect].m_switch];
+    m_insideOutside = m_faders[1];
+    m_insideOutsideAnimateSpeed = m_faders[2];
+  }
+        
+  if(m_netReceiver.m_enabled)
+    m_netReceiver.update(&m_lightCol[0], m_lightCol.size());
+  else {
+    float insideMix = m_insideOutside;
+    if(m_insideOutsideAnimateSpeed > 0.0) {
+      float mixShift = insideMix - 0.5f;
+      float insideOutMod = fabs(fmod(t * m_insideOutsideAnimateSpeed * 8.0, 2.0f) - 1.0f);
+      insideMix = insideOutMod + mixShift;
+      if(insideMix > 1.0f)
+	insideMix = 1.0;
+      if(insideMix < 0.0f)
+	insideMix = 0.0f;
+    }
+                
+    icosahedron::WhichSideCallback whichSide = [this](int n) -> int {
+      if(m_netMultiSender.m_enabled)
+	return m_netMultiSender.whichSide(n);
+      else
+	return (n / icosahedron::NUM_LEDS_PER_EDGE) & 1;
+    };
+                
+    icosahedron::AnimateLightColours(m_animation,
+				     m_lightPos,
+				     m_lightCol,
+				     t,
+				     m_edge,
+				     m_animParams,
+				     sizeof(m_animParams)/sizeof(m_animParams[0]),
+				     insideMix,
+				     whichSide);
+                                                 
+  }
+        
   glNamedBufferSubData(m_lightColBuffer, 0, sizeof(icosahedron::LightPoint) * m_lightCol.size(), &m_lightCol[0].px);
   GL_CHECK_ERROR();
 }
@@ -478,116 +563,116 @@ void NiceLightsApp::initGL()
 
 void NiceLightsApp::drawGUI()
 {
-	ImGui_ImplOpenGL3_NewFrame();
-	ImGui_ImplSDL2_NewFrame();
-	ImGui::NewFrame();
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplSDL2_NewFrame();
+  ImGui::NewFrame();
 
-	const auto windowFontScale = std::max(1.0f, WIN_HEIGHT / 1080.0f);
-	ImGui::Begin("Icosahedron");
+  const auto windowFontScale = std::max(1.0f, WIN_HEIGHT / 1080.0f);
+  ImGui::Begin("Icosahedron");
 
-	// Scale UI for High DIP displays
-	ImGui::SetWindowFontScale(windowFontScale);
+  // Scale UI for High DIP displays
+  ImGui::SetWindowFontScale(windowFontScale);
 
-	ImGui::SeparatorText("Rendering");
-	auto& io = ImGui::GetIO();
-	ImGui::Text("%.1f FPS", io.Framerate);		
-	ImGui::Checkbox("Draw Support Frame", &m_drawFrame);
-	ImGui::SliderFloat("Camera Distance", &m_camDistance, 0.1f, 10.0f);
-	
-	ImGui::Combo("Style", &m_animation, icosahedron::g_animationNames, icosahedron::GetNumAnimationPatterns());
-	ImGui::SliderInt("Highlight", &m_edge, 1, 30);
-	
-	ImGui::SeparatorText("Generic Animation");
-	ImGui::SliderFloat("Anim Param 1", &m_animParams[0], 0.0, 1.0);
-	ImGui::SliderFloat("Anim Param 2", &m_animParams[1], 0.0, 1.0);
-	ImGui::SliderFloat("Anim Param 3", &m_animParams[2], 0.0, 1.0);
-	ImGui::SliderFloat("Anim Param 4", &m_animParams[3], 0.0, 1.0);
-	ImGui::SliderFloat("Inside/Outside Mix", &m_insideOutside, 0.0, 1.0);
-	ImGui::SliderFloat("Inside/Outside Mod", &m_insideOutsideAnimateSpeed, 0.0, 1.0);	
-	
-	ImGui::SeparatorText("E131 Basic");				
-	if(ImGui::Checkbox("Receive", &m_netReceiver.m_enabled))
-		m_netReceiver.updateEnabled();
+  ImGui::SeparatorText("Rendering");
+  auto& io = ImGui::GetIO();
+  ImGui::Text("%.1f FPS", io.Framerate);          
+  ImGui::Checkbox("Draw Support Frame", &m_drawFrame);
+  ImGui::SliderFloat("Camera Distance", &m_camDistance, 0.1f, 10.0f);
+        
+  ImGui::Combo("Style", &m_animation, icosahedron::g_animationNames, icosahedron::GetNumAnimationPatterns());
+  ImGui::SliderInt("Highlight", &m_edge, 1, 30);
+        
+  ImGui::SeparatorText("Generic Animation");
+  ImGui::SliderFloat("Anim Param 1", &m_animParams[0], 0.0, 1.0);
+  ImGui::SliderFloat("Anim Param 2", &m_animParams[1], 0.0, 1.0);
+  ImGui::SliderFloat("Anim Param 3", &m_animParams[2], 0.0, 1.0);
+  ImGui::SliderFloat("Anim Param 4", &m_animParams[3], 0.0, 1.0);
+  ImGui::SliderFloat("Inside/Outside Mix", &m_insideOutside, 0.0, 1.0);
+  ImGui::SliderFloat("Inside/Outside Mod", &m_insideOutsideAnimateSpeed, 0.0, 1.0);       
+        
+  ImGui::SeparatorText("E131 Basic");                             
+  if(ImGui::Checkbox("Receive", &m_netReceiver.m_enabled))
+    m_netReceiver.updateEnabled();
 
-	ImGui::Checkbox("Receiver Dont Wait", &m_netReceiver.m_dontWaitForAllUniverses);
-	
-	ImGui::InputText("Destination", m_netSender.m_ipAddress, sizeof(m_netSender.m_ipAddress)-1);
+  ImGui::Checkbox("Receiver Dont Wait", &m_netReceiver.m_dontWaitForAllUniverses);
+        
+  ImGui::InputText("Destination", m_netSender.m_ipAddress, sizeof(m_netSender.m_ipAddress)-1);
 
-	if(ImGui::Checkbox("Transit", &m_netSender.m_enabled))
-		m_netSender.updateEnabled();
+  if(ImGui::Checkbox("Transit", &m_netSender.m_enabled))
+    m_netSender.updateEnabled();
 
-	if(ImGui::SliderInt("Framerate divisor", &m_netSender.m_divisor, 1, 30))
-		m_netSender.updateDivisor();
-	
-	ImGui::SliderInt("Max Universe", &m_netSender.m_maxUniverse, 1, m_netSender.getNumUniverses());
-	
-	ImGui::SeparatorText("E131 Rig");				
-	
-	if(ImGui::Button("Read Mapping File")) {
-		m_netMultiSender.readRangesFile("./src/edge-map.txt");
-	}
-	if(ImGui::Button("Read Local Mapping File")) {
-		m_netMultiSender.readRangesFile("./src/edge-map-local.txt");
-	}	
+  if(ImGui::SliderInt("Framerate divisor", &m_netSender.m_divisor, 1, 30))
+    m_netSender.updateDivisor();
+        
+  ImGui::SliderInt("Max Universe", &m_netSender.m_maxUniverse, 1, m_netSender.getNumUniverses());
+        
+  ImGui::SeparatorText("E131 Rig");                               
+        
+  if(ImGui::Button("Read Mapping File")) {
+    m_netMultiSender.readRangesFile("./src/edge-map.txt");
+  }
+  if(ImGui::Button("Read Local Mapping File")) {
+    m_netMultiSender.readRangesFile("./src/edge-map-local.txt");
+  }       
 
-	if(ImGui::Checkbox("Transmit", &m_netMultiSender.m_enabled))
-		m_netMultiSender.updateEnabled();
+  if(ImGui::Checkbox("Transmit", &m_netMultiSender.m_enabled))
+    m_netMultiSender.updateEnabled();
 
-	ImGui::SliderInt("Framerate divisor", &m_netMultiSender.m_frameDivisor, 1, 30);
-	ImGui::SliderFloat("Gamma", &GammaCorrection::g_gammaCorrection, 0.1, 5.0);
-	ImGui::SliderInt("Packet Offset", &m_netMultiSender.m_packetStartOffset, 0, 4);		
+  ImGui::SliderInt("Framerate divisor", &m_netMultiSender.m_frameDivisor, 1, 30);
+  ImGui::SliderFloat("Gamma", &GammaCorrection::g_gammaCorrection, 0.1, 5.0);
+  ImGui::SliderInt("Packet Offset", &m_netMultiSender.m_packetStartOffset, 0, 4);                 
 
-	ImGui::End();
+  ImGui::End();
 
-	ImGui::Begin("Peripheral");
+  ImGui::Begin("Peripheral");
 
-	// Scale UI for High DIP displays
-	ImGui::SetWindowFontScale(windowFontScale);
-	
-	ImGui::SeparatorText("Serial");
-	ImGui::InputText("Dev file", m_serialDev, sizeof(m_serialDev)-1);
-	if(ImGui::Button("Open device")) {
-		if(!m_serial.open(m_serialDev)) {
-			m_readSerialData = false;
-		}
-	}
-	
-	ImGui::Checkbox("Read", &m_readSerialData);
-	ImGui::Checkbox("Apply", &m_applyPeripheralData);
-	ImGui::SeparatorText("Hardware");
-	ImGui::Text("Bytes read: %i", m_serial.getBytesRead());
-	ImGui::Text("Sequence number: %i", m_serialSeqNum);
-	
-	ImGui::SliderInt("Bank select", &m_bankSelect, 0, 2);
-	for(int n = 0; n<3; n++) {
-		static const char *bankName[3] = {"Bank A", "Bank B", "Bank C"};
-		static const char *switchName[3] = {"3 way switch A (Anim 4)", "3 way switch B (Anim 4)", "3 way switch C (Anim 4)"};
-		static const char *potName[3] = {"Pot A (pattern)", "Pot B (pattern)", "Pot C (pattern)"};		
-		ImGui::SeparatorText(bankName[n]);		
-		ImGui::SliderInt(switchName[n], &m_bankData[n].m_switch, 0, 2);
-		ImGui::SliderInt(potName[n], &m_bankData[n].m_pot, 0, icosahedron::GetNumAnimationPatterns()-1);
-	}
-	
-	ImGui::SeparatorText("Sliders");		
-	ImGui::SliderFloat("Slider A (Anim 2)", &m_faders[0], 0.0f, 1.0f);
-	ImGui::SliderFloat("Slider B (In/Out balance)", &m_faders[1], 0.0f, 1.0f);
-	ImGui::SliderFloat("Slider C (in/Out mod)", &m_faders[2], 0.0f, 1.0f);	
+  // Scale UI for High DIP displays
+  ImGui::SetWindowFontScale(windowFontScale);
+        
+  ImGui::SeparatorText("Serial");
+  ImGui::InputText("Dev file", m_serialDev, sizeof(m_serialDev)-1);
+  if(ImGui::Button("Open device")) {
+    if(!m_serial.open(m_serialDev)) {
+      m_readSerialData = false;
+    }
+  }
+        
+  ImGui::Checkbox("Read", &m_readSerialData);
+  ImGui::Checkbox("Apply", &m_applyPeripheralData);
+  ImGui::SeparatorText("Hardware");
+  ImGui::Text("Bytes read: %i", m_serial.getBytesRead());
+  ImGui::Text("Sequence number: %i", m_serialSeqNum);
+        
+  ImGui::SliderInt("Bank select", &m_bankSelect, 0, 2);
+  for(int n = 0; n<3; n++) {
+    static const char *bankName[3] = {"Bank A", "Bank B", "Bank C"};
+    static const char *switchName[3] = {"3 way switch A (Anim 4)", "3 way switch B (Anim 4)", "3 way switch C (Anim 4)"};
+    static const char *potName[3] = {"Pot A (pattern)", "Pot B (pattern)", "Pot C (pattern)"};              
+    ImGui::SeparatorText(bankName[n]);              
+    ImGui::SliderInt(switchName[n], &m_bankData[n].m_switch, 0, 2);
+    ImGui::SliderInt(potName[n], &m_bankData[n].m_pot, 0, icosahedron::GetNumAnimationPatterns()-1);
+  }
+        
+  ImGui::SeparatorText("Sliders");                
+  ImGui::SliderFloat("Slider A (Anim 2)", &m_faders[0], 0.0f, 1.0f);
+  ImGui::SliderFloat("Slider B (In/Out balance)", &m_faders[1], 0.0f, 1.0f);
+  ImGui::SliderFloat("Slider C (in/Out mod)", &m_faders[2], 0.0f, 1.0f);  
 
-	ImGui::SeparatorText("Joystick");			
-	ImGui::SliderFloat("Joy Axis X", &m_joyAxisX, 0.0f, 1.0f);
-	ImGui::SliderFloat("Joy Axis Y", &m_joyAxisY, 0.0f, 1.0f);	
-	
-	ImGui::End();
-	
-	ImGui::Render();
+  ImGui::SeparatorText("Joystick");                       
+  ImGui::SliderFloat("Joy Axis X", &m_joyAxisX, 0.0f, 1.0f);
+  ImGui::SliderFloat("Joy Axis Y", &m_joyAxisY, 0.0f, 1.0f);      
+        
+  ImGui::End();
+        
+  ImGui::Render();
 }
 
 void NiceLightsApp::drawGL()
 {
-	drawGUI();
-	
+  drawGUI();
+        
   float rotVal = float(SDL_GetTicks()) * 0.0001f;
-	m_viewMat = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -m_camDistance)); 
+  m_viewMat = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -m_camDistance)); 
 
   glm::mat4 rotMatAlt = glm::rotate(glm::mat4(1.0f), m_camAltAz.y, glm::vec3(1.0, 0.0, 0.0));
   glm::mat4 rotMatAz = glm::rotate(glm::mat4(1.0f), m_camAltAz.x, glm::vec3(0.0, 1.0, 0.0));
@@ -601,12 +686,12 @@ void NiceLightsApp::drawGL()
   glNamedBufferSubData(m_ubMatrices, 0, sizeof(mats), mats);
   GL_CHECK_ERROR();
 
-	animateLights();
+  animateLights();
 
-	unsigned int ledCount = m_lightCol.size();
-	const icosahedron::LightPoint *lightPtr = &m_lightCol[0];
-	m_netSender.update(lightPtr, ledCount);
-	m_netMultiSender.update(lightPtr, ledCount);
+  unsigned int ledCount = m_lightCol.size();
+  const icosahedron::LightPoint *lightPtr = &m_lightCol[0];
+  m_netSender.update(lightPtr, ledCount);
+  m_netMultiSender.update(lightPtr, ledCount);
   glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
   if(m_drawFrame) {
@@ -628,8 +713,8 @@ void NiceLightsApp::drawGL()
   
   glDepthMask(GL_TRUE);  
   glDisable(GL_BLEND);
-	
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());  
+        
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());  
   SDL_GL_SwapWindow(m_window);  
 }
 
@@ -644,31 +729,31 @@ void NiceLightsApp::toggleFullscreen()
 
 void NiceLightsApp::onMouseButtonEvent(int x, int y, int btn, int state)
 {
-	if(btn == SDL_BUTTON_LEFT && state == SDL_PRESSED) {
-		m_mouseMotionStart = glm::ivec2(x, y);
-		m_mouseMotionStartAltAz = glm::vec2(m_camAltAz);
-	}
+  if(btn == SDL_BUTTON_LEFT && state == SDL_PRESSED) {
+    m_mouseMotionStart = glm::ivec2(x, y);
+    m_mouseMotionStartAltAz = glm::vec2(m_camAltAz);
+  }
 }
 
 void NiceLightsApp::onMouseMotionEvent(int x, int y, int relx, int rely, int btn)
 {
-	const auto pi = glm::pi<float>();
-	
-	if(btn & SDL_BUTTON_LMASK) {
-		glm::ivec2 delta = glm::ivec2(x, y) - m_mouseMotionStart;
-		m_camAltAz.x = m_mouseMotionStartAltAz.x + delta.x * 0.01;
-		m_camAltAz.y = m_mouseMotionStartAltAz.y + delta.y * 0.01;
-	}
+  const auto pi = glm::pi<float>();
+        
+  if(btn & SDL_BUTTON_LMASK) {
+    glm::ivec2 delta = glm::ivec2(x, y) - m_mouseMotionStart;
+    m_camAltAz.x = m_mouseMotionStartAltAz.x + delta.x * 0.01;
+    m_camAltAz.y = m_mouseMotionStartAltAz.y + delta.y * 0.01;
+  }
 
 }
 
 void NiceLightsApp::onMouseWheelEvent(int delta)
 {
-	m_camDistance += delta * -0.1f;
-	if(m_camDistance < 0.1)
-		m_camDistance = 0.1;
-	if(m_camDistance > 10.0)
-		m_camDistance = 10.0;
+  m_camDistance += delta * -0.1f;
+  if(m_camDistance < 0.1)
+    m_camDistance = 0.1;
+  if(m_camDistance > 10.0)
+    m_camDistance = 10.0;
 }
 
 void NiceLightsApp::onKeyboardEvent(auto sym)
@@ -694,34 +779,34 @@ void NiceLightsApp::onKeyboardEvent(auto sym)
 
 void NiceLightsApp::mainLoop()
 {
-  ImGuiIO& io = ImGui::GetIO();	
+  ImGuiIO& io = ImGui::GetIO();         
   SDL_Event event;  
   while(!m_quit) {
-    handleSerial();			
+    handleSerial();                     
     while(SDL_PollEvent(&event)) {
       ImGui_ImplSDL2_ProcessEvent(&event);
       if(event.type == SDL_MOUSEWHEEL) {
-	if(!io.WantCaptureMouse)
-	  onMouseWheelEvent(event.wheel.y); 
+        if(!io.WantCaptureMouse)
+          onMouseWheelEvent(event.wheel.y); 
       } else if(event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
-	if(!io.WantCaptureMouse)
-	  onMouseButtonEvent(event.button.x, event.button.y, event.button.button, event.button.state);
+        if(!io.WantCaptureMouse)
+          onMouseButtonEvent(event.button.x, event.button.y, event.button.button, event.button.state);
       } else if(event.type == SDL_MOUSEMOTION) {
-	if(!io.WantCaptureMouse)
-	  onMouseMotionEvent(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel, event.motion.state);
+        if(!io.WantCaptureMouse)
+          onMouseMotionEvent(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel, event.motion.state);
       } else if(event.type == SDL_KEYDOWN) {
-	if(!io.WantCaptureKeyboard)
-	  onKeyboardEvent(event.key.keysym.sym);
+        if(!io.WantCaptureKeyboard)
+          onKeyboardEvent(event.key.keysym.sym);
       } else if(event.type == SDL_WINDOWEVENT) {
-	if(event.window.event == SDL_WINDOWEVENT_CLOSE)
-	  m_quit = true;
-	else if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
-	  WIN_WIDTH = event.window.data1;
-	  WIN_HEIGHT = event.window.data2;
-	  updateMatrices();
-	}
+        if(event.window.event == SDL_WINDOWEVENT_CLOSE)
+          m_quit = true;
+        else if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
+          WIN_WIDTH = event.window.data1;
+          WIN_HEIGHT = event.window.data2;
+          updateMatrices();
+        }
       } else if(event.type == SDL_QUIT) {
-	m_quit = true;
+        m_quit = true;
       }
     }
 
@@ -744,72 +829,72 @@ void NiceLightsApp::mainLoop()
 
 void NiceLightsApp::handleSerial()
 {
-	if(!m_readSerialData)
-		return;
+  if(!m_readSerialData)
+    return;
 
-	while(m_serial.read(1)) {
-		const SerialControllerPacket& packet = *(reinterpret_cast<const SerialControllerPacket *>(m_serial.getDataBuf()));
-		int packetLen = m_serial.getDataBufLen();
-		
-		// if the packet doesn't start with the magic sequence then discard it
-		if(packet.m_magicByte != 0xff) {
-			m_serial.clearDataBuf();
-			continue;
-		}
-		
-		// check for a keep alive packet, use these to show when the peripheral is working
-		if(packetLen == 2) {
-			m_serialSeqNum = packet.m_seqNum;
-			if(packet.m_changed == 0) {
-				// flush this packet ready for the next one.
-				m_serial.clearDataBuf();
-				continue;
-			}
-		}
+  while(m_serial.read(1)) {
+    const SerialControllerPacket& packet = *(reinterpret_cast<const SerialControllerPacket *>(m_serial.getDataBuf()));
+    int packetLen = m_serial.getDataBufLen();
+                
+    // if the packet doesn't start with the magic sequence then discard it
+    if(packet.m_magicByte != 0xff) {
+      m_serial.clearDataBuf();
+      continue;
+    }
+                
+    // check for a keep alive packet, use these to show when the peripheral is working
+    if(packetLen == 2) {
+      m_serialSeqNum = packet.m_seqNum;
+      if(packet.m_changed == 0) {
+	// flush this packet ready for the next one.
+	m_serial.clearDataBuf();
+	continue;
+      }
+    }
 
-		//printf("Read packet %i, len %i\n", packet.m_seqNum, packetLen);
-		
-		// only process an entire packet
-		if(packetLen < 12)
-			continue;
+    //printf("Read packet %i, len %i\n", packet.m_seqNum, packetLen);
+                
+    // only process an entire packet
+    if(packetLen < 12)
+      continue;
 
-		// ok now do something with it!
-		if(packet.m_buttonA)
-			m_bankSelect = 2;
-		else if(packet.m_buttonB)
-			m_bankSelect = 1;
-		else if(packet.m_buttonC)
-			m_bankSelect = 0;
+    // ok now do something with it!
+    if(packet.m_buttonA)
+      m_bankSelect = 2;
+    else if(packet.m_buttonB)
+      m_bankSelect = 1;
+    else if(packet.m_buttonC)
+      m_bankSelect = 0;
 
-		m_bankData[0].m_switch = !packet.m_switchA_L | packet.m_switchA_R<<1;
-		m_bankData[1].m_switch = !packet.m_switchB_L | packet.m_switchB_R<<1;
-		m_bankData[2].m_switch = !packet.m_switchC_L | packet.m_switchC_R<<1;
-		
-		static auto mapFader = [](const uint8_t value) -> float {
-			const uint8_t faderRange = 254;
-			return float(value) / float(faderRange);
-		};
-		
-		static auto mapPot = [](const uint8_t value) -> int {
-			float v = mapFader(value);
-			return std::min(icosahedron::GetNumAnimationPatterns()-1, int(v * icosahedron::GetNumAnimationPatterns()));
-		};
-		
-		m_bankData[0].m_pot = mapPot(packet.m_potA);
-		m_bankData[1].m_pot = mapPot(packet.m_potB);
-		m_bankData[2].m_pot = mapPot(packet.m_potC);
-		
-		m_faders[0] = mapFader(packet.m_faderA);
-		m_faders[1] = mapFader(packet.m_faderB);
-		m_faders[2] = mapFader(packet.m_faderC);
-		
-		m_joyAxisX = mapFader(packet.m_joyAxisX);
-		m_joyAxisY = mapFader(packet.m_joyAxisY);
-		
-		m_serial.clearDataBuf();
+    m_bankData[0].m_switch = !packet.m_switchA_L | packet.m_switchA_R<<1;
+    m_bankData[1].m_switch = !packet.m_switchB_L | packet.m_switchB_R<<1;
+    m_bankData[2].m_switch = !packet.m_switchC_L | packet.m_switchC_R<<1;
+                
+    static auto mapFader = [](const uint8_t value) -> float {
+      const uint8_t faderRange = 254;
+      return float(value) / float(faderRange);
+    };
+                
+    static auto mapPot = [](const uint8_t value) -> int {
+      float v = mapFader(value);
+      return std::min(icosahedron::GetNumAnimationPatterns()-1, int(v * icosahedron::GetNumAnimationPatterns()));
+    };
+                
+    m_bankData[0].m_pot = mapPot(packet.m_potA);
+    m_bankData[1].m_pot = mapPot(packet.m_potB);
+    m_bankData[2].m_pot = mapPot(packet.m_potC);
+                
+    m_faders[0] = mapFader(packet.m_faderA);
+    m_faders[1] = mapFader(packet.m_faderB);
+    m_faders[2] = mapFader(packet.m_faderC);
+                
+    m_joyAxisX = mapFader(packet.m_joyAxisX);
+    m_joyAxisY = mapFader(packet.m_joyAxisY);
+                
+    m_serial.clearDataBuf();
 
-		//break;
-	}
+    //break;
+  }
 }
 
 int main (int ac, char **av)

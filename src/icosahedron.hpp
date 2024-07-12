@@ -42,9 +42,12 @@ void MakeIcosahedronPipesMesh(std::vector<Vertex>& verts);
 void MakeIcosahedronLightPoints(std::vector<LightPoint>& lightPos, std::vector<LightPoint>& lightCol);
 void MakeFloorPlane(std::vector<Vertex>& verts, float height, int res, float scale);
 
-  typedef std::function<int(int)> WhichSideCallback;
-  //typedef int (*WhichSideCallback)(int srcIdx);
-  
+typedef std::function<int(int)> WhichSideCallback;
+//typedef int (*WhichSideCallback)(int srcIdx);
+
+/// This needs tidying and restructuring so badly... a nice factory pattern and some abstract classes would
+/// make such a difference. This has been added to and added to cram in more features in the lead up to
+/// Liverpool MakeFest 2023.
 void AnimateLightColours(int pattern,
 			 const std::vector<LightPoint>& positions,
 			 std::vector<LightPoint>& colours,
