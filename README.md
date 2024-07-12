@@ -1,5 +1,7 @@
 # nice-lights
 
+![First light](built.png)
+
 Visualiser and controller for the Quantum Tech Club Icosahedron LED light rig.
 
 # Build
@@ -91,6 +93,7 @@ This provides E131 support with mapping support for the icosahedron rig.
 - **Apply** whether to apply the read data to the visualisation. (this will cause the values in the Peripheral window to alter the values in the Icosahedron window)
 
 # TODO
-- Source has mixed spaces and tabs :-( should be 2 spaces throughout
-- Commenting is missing - this was a spare time personal project!
+- Commenting is missing - this was a spare time personal project
+- More tidying, especially the interface to the light patterns and the icosahedron.
+- ~~Source has mixed spaces and tabs should be 2 spaces throughout~~
 - ~~Makefile is rubbish, should be replaced with CMake~~ 
