@@ -10,9 +10,9 @@ struct PACKED SerialControllerPacket {
   uint8_t m_zero1 : 1;
   uint8_t m_changed : 1;
         
-  uint8_t m_buttonA : 1;
-  uint8_t m_buttonB : 1;
   uint8_t m_buttonC : 1;
+  uint8_t m_buttonB : 1;
+  uint8_t m_buttonA : 1;
   uint8_t m_buttonX : 5;  
 
   union {
